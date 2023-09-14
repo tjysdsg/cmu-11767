@@ -17,7 +17,10 @@ def main():
 
     with open(args.train_data, 'r') as f:
         n = 0
-        for line in f:
+        for i, line in enumerate(f):
+            if i == 0:  # skip header
+                continue
+
             cols = line.rstrip('\n').split('\t')
             if len(cols) != 2:
                 continue
