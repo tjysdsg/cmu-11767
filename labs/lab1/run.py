@@ -44,8 +44,9 @@ class SST2Data(Dataset):
         return self.data.shape[1] - 1
 
 
-def train(
+def experiment(
         train_loader: DataLoader,
+        test_loader: DataLoader,
         num_layers: int,
         hidden_size: int,
         vocab_size: int,
@@ -55,13 +56,31 @@ def train(
     trainer = pl.Trainer(max_epochs=epochs)
     trainer.fit(model=model, train_dataloaders=train_loader)
 
+    # Evaluation
+    y_true = []
+    y_pred = []
+    for batch in test_loader:
+        x, y = batch['feats'], batch['label']
+        assert x.shape[0] == y.shape[0] == 1  # batch=1 during inference
+        y_true.append(int(y.squeeze()))
+
+        y_hat = model.model(x)
+        y_hat = int(torch.sigmoid(y_hat).squeeze(0) > 0.5)
+        y_pred.append(y_hat)
+
+    from sklearn.metrics import accuracy_score
+    print(f'Accuracy: {accuracy_score(y_true, y_pred)}')
+
 
 def main():
     batch_size = 64
     train_data = SST2Data('train_clean.npy')
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
-    train(train_loader, 2, 256, train_data.vocab_size, 2)
+    test_data = SST2Data('dev_clean.npy')
+    test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
+
+    experiment(train_loader, test_loader, 2, 256, train_data.vocab_size, 2)
 
 
 if __name__ == '__main__':
