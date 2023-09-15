@@ -1,10 +1,14 @@
+import os
+import json
 import torch
+from typing import Tuple, List
 import time
 from torch import optim, nn
 import numpy as np
 from model import Net
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
+from dataclasses import dataclass, asdict
 
 
 class SST2Data(Dataset):
@@ -25,9 +29,8 @@ class SST2Data(Dataset):
 
 
 def train_one_epoch(train_loader: DataLoader, optimizer: optim.Optimizer, model: nn.Module):
-    running_loss = 0
-    last_loss = 0
-
+    # running_loss = 0
+    # last_loss = 0
     for i, batch in enumerate(train_loader):
         x, y = batch['feats'], batch['label']
         y = y.unsqueeze(1).to(dtype=torch.float)
@@ -41,13 +44,11 @@ def train_one_epoch(train_loader: DataLoader, optimizer: optim.Optimizer, model:
         optimizer.step()
 
         # report
-        running_loss += loss.item()
-        if i % 100 == 99:
-            last_loss = running_loss / 100  # loss per batch
-            print('  batch {} loss: {}'.format(i + 1, last_loss))
-            running_loss = 0.
-
-    return last_loss
+        # running_loss += loss.item()
+        # if i % 100 == 99:
+        #     last_loss = running_loss / 100  # loss per batch
+        #     print('  batch {} loss: {}'.format(i + 1, last_loss))
+        #     running_loss = 0.
 
 
 def train(
@@ -57,7 +58,7 @@ def train(
         vocab_size: int,
         epochs: int,
         trials: int = 5,
-) -> nn.Module:
+) -> Tuple[nn.Module, List[float]]:
     assert trials > 0
 
     train_time = []
@@ -67,9 +68,6 @@ def train(
         print(f'Training trial {t + 1}/{trials}')
 
         model = Net(num_layers, hidden_size, vocab_size, 1)
-        print(f'Number of parameters: {model.num_params}')
-        print(f'FLOPs: {model.flop}')
-
         model.train()
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
@@ -82,7 +80,7 @@ def train(
         train_time.append(end_time - start_time)
 
     print(f'Training time (seconds): {train_time}')
-    return model
+    return model, train_time
 
 
 def evaluate(
@@ -103,7 +101,9 @@ def evaluate(
         y_pred.append(y_hat)
 
     from sklearn.metrics import accuracy_score
-    print(f'Accuracy: {accuracy_score(y_true, y_pred)}')
+    acc = accuracy_score(y_true, y_pred)
+    print(f'Accuracy: {acc}')
+    return acc
 
 
 def benchmark_inference(
@@ -124,29 +124,58 @@ def benchmark_inference(
         end_time = time.time_ns()
         inference_time.append(end_time - start_time)
 
-    print(f'Inference time (ms): {np.asarray(inference_time) / (len(test_loader) * 1e6)}')
+    inference_time = np.asarray(inference_time) / (len(test_loader) * 1e6)
+    print(f'Inference time (ms): {inference_time}')
+    return inference_time.tolist()
 
 
-def main():
+@dataclass
+class Result:
+    acc: float
+    train_time: List[float]
+    inference_time: List[float]
+    num_params: int
+    FLOPs: int
+
+
+def experiment(num_layers: int, hidden_size: int, train_test_data: Tuple[str, str]):
     batch_size = 64
-    train_data = SST2Data('train_clean_reduced.npy')
+    train_data = SST2Data(train_test_data[0])
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
-    test_data = SST2Data('dev_clean_reduced.npy')
+    test_data = SST2Data(train_test_data[1])
     test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
 
     # Base
-    model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
-    # Deep
-    # model = train(train_loader, 4, 256, train_data.vocab_size, 2, trials=5)
-    # Shallow
-    # model = train(train_loader, 1, 256, train_data.vocab_size, 2, trials=5)
-    # Wide
-    # model = train(train_loader, 2, 512, train_data.vocab_size, 2, trials=5)
+    model, train_time = train(train_loader, num_layers, hidden_size, train_data.vocab_size, 2, trials=1)
+    acc = evaluate(model, test_loader)
+    inference_time = benchmark_inference(model, test_loader, trials=5)
 
-    evaluate(model, test_loader)
+    return Result(
+        acc=acc, train_time=train_time, inference_time=inference_time, num_params=model.num_params,
+        FLOPs=model.flop,
+    )
 
-    benchmark_inference(model, test_loader, trials=5)
+
+def main():
+    os.makedirs('results', exist_ok=True)
+
+    matrix = dict(
+        num_layers=[1, 2, 4],
+        hidden_size=[128, 256, 512],
+        train_test_data=[('train_clean.npy', 'dev_clean.npy'), ('train_clean_reduced.npy', 'dev_clean_reduced.npy')],
+    )
+
+    for nl in matrix['num_layers']:
+        for hs in matrix['hidden_size']:
+            for data in matrix['train_test_data']:
+                tag = f'num_layers={nl}_hidden_size={hs}_data={data[0]}'
+                print(f'Running experiment {tag}')
+
+                result = experiment(nl, hs, data)
+                result = asdict(result)
+                with open(f'results/{tag}.json', 'w') as f:
+                    json.dump(result, f, indent=2)
 
 
 if __name__ == '__main__':
