@@ -1,30 +1,10 @@
 import torch
-from torch import optim, nn, utils
+import time
+from torch import optim, nn
 import numpy as np
-import lightning.pytorch as pl
 from model import Net
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
-
-
-class SST2Model(pl.LightningModule):
-    def __init__(self, num_layers: int, hidden_size: int, vocab_size: int):
-        super().__init__()
-        self.model = Net(num_layers, hidden_size, vocab_size, 1)
-
-    def training_step(self, batch, batch_idx):
-        x, y = batch['feats'], batch['label']
-        y = y.unsqueeze(1).to(dtype=torch.float)
-        y_hat = self.model(x)
-
-        loss = F.binary_cross_entropy_with_logits(y_hat, y)
-
-        # self.log("train_loss", loss)
-        return loss
-
-    def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
 
 
 class SST2Data(Dataset):
@@ -44,32 +24,89 @@ class SST2Data(Dataset):
         return self.data.shape[1] - 1
 
 
-def experiment(
+def train_one_epoch(train_loader: DataLoader, optimizer: optim.Optimizer, model: nn.Module):
+    running_loss = 0
+    last_loss = 0
+
+    for i, batch in enumerate(train_loader):
+        x, y = batch['feats'], batch['label']
+        y = y.unsqueeze(1).to(dtype=torch.float)
+
+        optimizer.zero_grad()
+
+        y_hat = model(x)
+        loss = F.binary_cross_entropy_with_logits(y_hat, y)
+        loss.backward()
+
+        optimizer.step()
+
+        # report
+        running_loss += loss.item()
+        if i % 100 == 99:
+            last_loss = running_loss / 100  # loss per batch
+            print('  batch {} loss: {}'.format(i + 1, last_loss))
+            running_loss = 0.
+
+    return last_loss
+
+
+def train(
         train_loader: DataLoader,
-        test_loader: DataLoader,
         num_layers: int,
         hidden_size: int,
         vocab_size: int,
         epochs: int,
-):
-    model = SST2Model(num_layers, hidden_size, vocab_size)
-    trainer = pl.Trainer(max_epochs=epochs)
-    trainer.fit(model=model, train_dataloaders=train_loader)
+        trials: int = 5,
+) -> nn.Module:
+    assert trials > 0
 
-    # Evaluation
+    train_time = []
+
+    model = None
+    for t in range(trials):
+        print(f'Training trial {t + 1}/{trials}')
+        model = Net(num_layers, hidden_size, vocab_size, 1)
+        model.train()
+        optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+        start_time = time.time()
+
+        for e in range(epochs):
+            train_one_epoch(train_loader, optimizer, model)
+
+        end_time = time.time()
+        train_time.append(end_time - start_time)
+
+    print(f'Training time (seconds): {train_time}')
+    return model
+
+
+def evaluate(
+        model: nn.Module,
+        test_loader: DataLoader,
+):
     y_true = []
     y_pred = []
+    inference_time = []
+
+    model.eval()
     for batch in test_loader:
         x, y = batch['feats'], batch['label']
         assert x.shape[0] == y.shape[0] == 1  # batch=1 during inference
         y_true.append(int(y.squeeze()))
 
-        y_hat = model.model(x)
+        start_time = time.time_ns()
+        y_hat = model(x)
+        end_time = time.time_ns()
+        inference_time.append(end_time - start_time)
+
         y_hat = int(torch.sigmoid(y_hat).squeeze(0) > 0.5)
         y_pred.append(y_hat)
 
     from sklearn.metrics import accuracy_score
     print(f'Accuracy: {accuracy_score(y_true, y_pred)}')
+
+    print(f'Inference time (ns): {inference_time}')
 
 
 def main():
@@ -80,7 +117,8 @@ def main():
     test_data = SST2Data('dev_clean.npy')
     test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
 
-    experiment(train_loader, test_loader, 2, 256, train_data.vocab_size, 2)
+    model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
+    evaluate(model, test_loader)
 
 
 if __name__ == '__main__':
