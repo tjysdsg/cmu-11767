@@ -129,20 +129,20 @@ def benchmark_inference(
 
 def main():
     batch_size = 64
-    train_data = SST2Data('train_clean.npy')
+    train_data = SST2Data('train_clean_reduced.npy')
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
-    test_data = SST2Data('dev_clean.npy')
+    test_data = SST2Data('dev_clean_reduced.npy')
     test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
 
     # Base
-    # model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
+    model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
     # Deep
     # model = train(train_loader, 4, 256, train_data.vocab_size, 2, trials=5)
     # Shallow
     # model = train(train_loader, 1, 256, train_data.vocab_size, 2, trials=5)
     # Wide
-    model = train(train_loader, 2, 512, train_data.vocab_size, 2, trials=5)
+    # model = train(train_loader, 2, 512, train_data.vocab_size, 2, trials=5)
 
     evaluate(model, test_loader)
 

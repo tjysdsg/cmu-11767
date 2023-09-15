@@ -1,11 +1,13 @@
 import json
 import string
+from collections import Counter
 
 
 def get_args():
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('train_data', type=str)
+    parser.add_argument('--k', type=int, default=-1)
     parser.add_argument('output', type=str)
     return parser.parse_args()
 
@@ -13,7 +15,7 @@ def get_args():
 def main():
     args = get_args()
 
-    words = set()
+    words = Counter()
 
     with open(args.train_data, 'r') as f:
         n = 0
@@ -34,6 +36,10 @@ def main():
 
     print(f'Number of lines processed: {n}')
     print(f'Vocabulary size: {len(words)}')
+
+    if args.k != -1:
+        print(f'Only keeping top {args.k} words')
+        words = [w for w, _ in words.most_common(args.k)]
 
     words = sorted(list(words))
     word2idx = dict()
