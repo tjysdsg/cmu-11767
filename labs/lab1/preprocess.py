@@ -7,8 +7,9 @@ from collections import Counter
 def get_args():
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('train_data', type=str)
+    parser.add_argument('data', type=str)
     parser.add_argument('--vocab', type=str, default='vocab.json')
+    parser.add_argument('--test', action='store_true')
     parser.add_argument('output', type=str)
     return parser.parse_args()
 
@@ -22,7 +23,8 @@ def main():
 
     data = []
     label_count = [0, 0]
-    with open(args.train_data, 'r') as f:
+    n_oov = 0
+    with open(args.data, 'r') as f:
         for i, line in enumerate(f):
             if i == 0:  # skip header
                 continue
@@ -33,7 +35,10 @@ def main():
                 continue
 
             sentence = cols[0]
-            label = int(cols[1])
+            if args.test:
+                label = 0
+            else:
+                label = int(cols[1])
 
             # Remove punctuation
             sentence = sentence.translate(str.maketrans('', '', string.punctuation))
@@ -47,12 +52,16 @@ def main():
             words = sentence.split()
             counter = Counter(words)
             for w in words:
-                idx = word2idx[w]
+                idx = word2idx.get(w, -1)
+                if idx == -1:
+                    n_oov += 1
+                    continue
                 v[idx + 1] = counter[w]
 
             data.append(v)
 
     print(f'Label count: {label_count}')
+    print(f'OOV: {n_oov}')
 
     np.concatenate(data, axis=0).tofile(args.output)
 
