@@ -63,7 +63,9 @@ def main():
     print(f'Label count: {label_count}')
     print(f'OOV: {n_oov}')
 
-    np.concatenate(data, axis=0).tofile(args.output)
+    data = np.vstack(data)
+    print(f'Shape: {data.shape}')
+    np.save(args.output, data)
 
 
 if __name__ == '__main__':
