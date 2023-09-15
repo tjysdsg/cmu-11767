@@ -87,7 +87,6 @@ def evaluate(
 ):
     y_true = []
     y_pred = []
-    inference_time = []
 
     model.eval()
     for batch in test_loader:
@@ -95,18 +94,33 @@ def evaluate(
         assert x.shape[0] == y.shape[0] == 1  # batch=1 during inference
         y_true.append(int(y.squeeze()))
 
-        start_time = time.time_ns()
         y_hat = model(x)
-        end_time = time.time_ns()
-        inference_time.append(end_time - start_time)
-
         y_hat = int(torch.sigmoid(y_hat).squeeze(0) > 0.5)
         y_pred.append(y_hat)
 
     from sklearn.metrics import accuracy_score
     print(f'Accuracy: {accuracy_score(y_true, y_pred)}')
 
-    print(f'Inference time (ns): {inference_time}')
+
+def benchmark_inference(
+        model: nn.Module,
+        test_loader: DataLoader,
+        trials: int = 5,
+):
+    inference_time = []
+    model.eval()
+
+    for t in range(trials):
+        start_time = time.time_ns()
+
+        for batch in test_loader:
+            x = batch['feats']
+            model(x)
+
+        end_time = time.time_ns()
+        inference_time.append(end_time - start_time)
+
+    print(f'Inference time (ms): {np.asarray(inference_time) / (len(test_loader) * 1e6)}')
 
 
 def main():
@@ -119,6 +133,8 @@ def main():
 
     model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
     evaluate(model, test_loader)
+
+    benchmark_inference(model, test_loader, trials=5)
 
 
 if __name__ == '__main__':
