@@ -5,6 +5,10 @@ from torch import nn
 class Net(nn.Module):
     def __init__(self, num_layers: int, hidden_size: int, input_size: int, output_size: int):
         super().__init__()
+        self.num_layers = num_layers
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
 
         self.input_layer = nn.Linear(input_size, hidden_size)
 
@@ -21,6 +25,18 @@ class Net(nn.Module):
         x = self.layers(x)
         x = self.output_layer(x)
         return x
+
+    @property
+    def num_params(self):
+        return sum(p.numel() for p in self.parameters())
+
+    @property
+    def flop(self):
+        input_layer = 2 * self.input_size * self.hidden_size + self.hidden_size
+        hidden_layer = 2 * self.hidden_size * self.hidden_size + self.hidden_size
+        # ignoring relu
+        output_layer = 2 * self.hidden_size * self.output_size + self.output_size
+        return input_layer + self.num_layers * hidden_layer + output_layer
 
 
 def test_net():

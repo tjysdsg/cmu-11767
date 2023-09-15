@@ -65,7 +65,11 @@ def train(
     model = None
     for t in range(trials):
         print(f'Training trial {t + 1}/{trials}')
+
         model = Net(num_layers, hidden_size, vocab_size, 1)
+        print(f'Number of parameters: {model.num_params}')
+        print(f'FLOPs: {model.flop}')
+
         model.train()
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
