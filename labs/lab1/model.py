@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class Net(nn.Module):
@@ -21,7 +22,7 @@ class Net(nn.Module):
         self.output_layer = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor):
-        x = self.input_layer(x)
+        x = F.relu(self.input_layer(x))
         x = self.layers(x)
         x = self.output_layer(x)
         return x

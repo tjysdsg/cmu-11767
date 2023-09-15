@@ -1,2 +1,3 @@
 *.npy
 lightning_logs/
+~*

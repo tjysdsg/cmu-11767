@@ -135,7 +135,15 @@ def main():
     test_data = SST2Data('dev_clean.npy')
     test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
 
-    model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
+    # Base
+    # model = train(train_loader, 2, 256, train_data.vocab_size, 2, trials=5)
+    # Deep
+    # model = train(train_loader, 4, 256, train_data.vocab_size, 2, trials=5)
+    # Shallow
+    # model = train(train_loader, 1, 256, train_data.vocab_size, 2, trials=5)
+    # Wide
+    model = train(train_loader, 2, 512, train_data.vocab_size, 2, trials=5)
+
     evaluate(model, test_loader)
 
     benchmark_inference(model, test_loader, trials=5)
