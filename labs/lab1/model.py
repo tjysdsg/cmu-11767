@@ -8,10 +8,12 @@ class Net(nn.Module):
 
         self.input_layer = nn.Linear(input_size, hidden_size)
 
-        self.layers = nn.Sequential(*[
-            nn.Linear(hidden_size, hidden_size) for _ in range(num_layers)
-        ])
+        layers = []
+        for i in range(num_layers):
+            layers.append(nn.Linear(hidden_size, hidden_size))
+            layers.append(nn.ReLU())
 
+        self.layers = nn.Sequential(*layers)
         self.output_layer = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor):
