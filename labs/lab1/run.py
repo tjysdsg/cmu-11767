@@ -137,21 +137,19 @@ class Result:
     num_params: int
     FLOPs: int
 
+    num_layers: int
+    hidden_size: int
+    vocab_size: int
 
-def experiment(num_layers: int, hidden_size: int, train_test_data: Tuple[str, str]):
-    batch_size = 64
-    train_data = SST2Data(train_test_data[0])
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
-    test_data = SST2Data(train_test_data[1])
-    test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
-
+def experiment(num_layers: int, hidden_size: int, vocab_size: int, train_loader: DataLoader, test_loader: DataLoader):
     # Base
-    model, train_time = train(train_loader, num_layers, hidden_size, train_data.vocab_size, 2, trials=1)
+    model, train_time = train(train_loader, num_layers, hidden_size, vocab_size, 2, trials=1)
     acc = evaluate(model, test_loader)
     inference_time = benchmark_inference(model, test_loader, trials=5)
 
     return Result(
+        num_layers=num_layers, hidden_size=hidden_size, vocab_size=vocab_size,
         acc=acc, train_time=train_time, inference_time=inference_time, num_params=model.num_params,
         FLOPs=model.flop,
     )
@@ -160,21 +158,36 @@ def experiment(num_layers: int, hidden_size: int, train_test_data: Tuple[str, st
 def main():
     os.makedirs('results', exist_ok=True)
 
+    batch_size = 64
     matrix = dict(
         num_layers=[1, 2, 4],
         hidden_size=[128, 256, 512],
-        train_test_data=[('train_clean.npy', 'dev_clean.npy'), ('train_clean_reduced.npy', 'dev_clean_reduced.npy')],
+        vocab_size=[1000, 5000, 10000],
     )
 
     for nl in matrix['num_layers']:
         for hs in matrix['hidden_size']:
-            for data in matrix['train_test_data']:
-                tag = f'num_layers={nl}_hidden_size={hs}_data={data[0]}'
-                print(f'Running experiment {tag}')
+            for vocab_size in matrix['vocab_size']:
+                # data
+                train_data = SST2Data(f'train_bow{vocab_size}.npy')
+                train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+                test_data = SST2Data(f'dev_bow{vocab_size}.npy')
+                test_loader = DataLoader(test_data, batch_size=1, shuffle=True)
 
-                result = experiment(nl, hs, data)
+                # prepare
+                tag = f'num_layers={nl}_hidden_size={hs}_vocab_size={vocab_size}'
+                output_file = f'results/{tag}.json'
+                if os.path.exists(output_file):
+                    print(f'Skipping experiment {tag}')
+                    continue
+                print(f'\nRunning experiment {tag}')
+
+                # run
+                result = experiment(nl, hs, vocab_size, train_loader, test_loader)
+
+                # save
                 result = asdict(result)
-                with open(f'results/{tag}.json', 'w') as f:
+                with open(output_file, 'w') as f:
                     json.dump(result, f, indent=2)
 
 

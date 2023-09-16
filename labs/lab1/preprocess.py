@@ -8,7 +8,7 @@ def get_args():
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('data', type=str)
-    parser.add_argument('--vocab', type=str, default='vocab.json')
+    parser.add_argument('--vocab', type=str, default='vocab_14704.json')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('output', type=str)
     return parser.parse_args()
