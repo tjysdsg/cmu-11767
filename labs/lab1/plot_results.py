@@ -18,18 +18,22 @@ def get_or_mean(d):
     return d
 
 
-def plot(ax, data: List[dict], label: str, x_key: str, y_key: str, annotation_key: str):
+def plot(ax, data: List[dict], label: str, x_key: str, y_key: str, annotation_key: str = None):
     x = []
     y = []
     ann = []
     for d in data:
         x.append(get_or_mean(d[x_key]))
         y.append(get_or_mean(d[y_key]))
-        ann.append(d[annotation_key])
+
+        if annotation_key is not None:
+            ann.append(d[annotation_key])
 
     ax.scatter(x, y, marker='^', label=label)
-    for i, j, a in zip(x, y, ann):
-        ax.annotate(f'{a}', (i, j), fontsize=9)
+
+    if annotation_key is not None:
+        for i, j, a in zip(x, y, ann):
+            ax.annotate(f'{a}', (i, j), fontsize=9)
 
     ax.set_xlabel(x_key)
     ax.set_ylabel(y_key)
@@ -100,6 +104,15 @@ def main():
     plot(axes[2], subset, label, x_key='inference_time', y_key='FLOPs', annotation_key='vocab_size')
 
     plt.savefig('viz_vocab_sizes.png', bbox_inches='tight')
+    plt.close('all')
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
+    axes = axes.flatten()
+    label = None
+    plot(axes[0], data, label, x_key='FLOPs', y_key='acc')
+    plot(axes[1], data, label, x_key='inference_time', y_key='acc')
+    plot(axes[2], data, label, x_key='inference_time', y_key='FLOPs')
+    plt.savefig('viz_all.png', bbox_inches='tight')
     plt.close('all')
 
 
